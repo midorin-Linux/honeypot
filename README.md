@@ -26,5 +26,6 @@ just fmt
 # ...お前に次の計画を手伝わせよう
 **必要なのだ！**
 - Rust 2024 Edition Nightly Toolchain
-- Justfile  
+- Justfile
+
 **の環境が！**
