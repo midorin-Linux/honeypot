@@ -14,6 +14,12 @@ pub struct Config {
     pub api_base_url: String,
     pub api_key: String,
     pub llm_model: String,
+    #[serde(default = "default_enable_ai_judgment")]
+    pub enable_ai_judgment: bool,
+}
+
+fn default_enable_ai_judgment() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -24,6 +30,7 @@ impl Default for Config {
             api_base_url: "".to_string(),
             api_key: "".to_string(),
             llm_model: "".to_string(),
+            enable_ai_judgment: true,
         }
     }
 }
@@ -63,8 +70,18 @@ impl Config {
             bail!("honeypot_channel must not be empty");
         }
 
-        if self.llm_model.trim().is_empty() {
-            bail!("llm_model must not be empty");
+        if self.enable_ai_judgment {
+            if self.api_base_url.trim().is_empty() {
+                bail!("api_base_url must not be empty");
+            }
+
+            if self.api_key.trim().is_empty() {
+                bail!("api_key must not be empty");
+            }
+
+            if self.llm_model.trim().is_empty() {
+                bail!("llm_model must not be empty");
+            }
         }
 
         Ok(())

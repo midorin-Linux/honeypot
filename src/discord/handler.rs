@@ -13,6 +13,7 @@ pub struct Handler {
     pub agent_runtime: AgentRuntime,
     pub spinner: indicatif::ProgressBar,
     pub honeypot_channel: u64,
+    pub enable_ai_judgment: bool,
 }
 
 #[async_trait]
@@ -36,33 +37,28 @@ impl EventHandler for Handler {
             return;
         }
 
-        let ban_reason = if has_invite_link(&msg.content) {
-            Some("honeypot: discord invite link detected")
+        let ban_reason = if !self.enable_ai_judgment {
+            "honeypot: AI judgment disabled, all posts in target channel are banned"
+        } else if has_invite_link(&msg.content) {
+            "honeypot: discord invite link detected"
         } else if msg.mention_everyone || !msg.mention_roles.is_empty() {
-            Some("honeypot: role/everyone mention detected")
+            "honeypot: role/everyone mention detected"
         } else if msg.mentions.len() > 1 {
-            Some("honeypot: mass mention detected")
+            "honeypot: mass mention detected"
         } else {
-            None
-        };
-
-        let ban_reason = match ban_reason {
-            Some(reason) => reason,
-            None => {
-                let is_spam = match self.agent_runtime.judge_spam(&msg.content).await {
-                    Ok(verdict) => verdict,
-                    Err(err) => {
-                        error!(error = %err, "failed to judge message for spam");
-                        return;
-                    }
-                };
-
-                if !is_spam {
+            let is_spam = match self.agent_runtime.judge_spam(&msg.content).await {
+                Ok(verdict) => verdict,
+                Err(err) => {
+                    error!(error = %err, "failed to judge message for spam");
                     return;
                 }
+            };
 
-                "honeypot: spam detected by LLM"
+            if !is_spam {
+                return;
             }
+
+            "honeypot: spam detected by LLM"
         };
 
         let Some(guild_id) = msg.guild_id else {
