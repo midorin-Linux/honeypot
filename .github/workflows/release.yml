@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   BIN_NAME: honeypot
@@ -16,22 +20,21 @@ jobs:
   build:
     name: build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            ext: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             ext: ".exe"
+            archive: zip
           - os: macos-latest
             target: x86_64-apple-darwin
-            ext: ""
           - os: macos-latest
             target: aarch64-apple-darwin
-            ext: ""
 
     steps:
       - uses: actions/checkout@v7
@@ -47,9 +50,11 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: cargo build --release --locked --bin "$BIN_NAME" --target ${{ matrix.target }}
+        shell: bash
 
       - name: Package artifact
+        id: package
         shell: bash
         run: |
           set -euo pipefail
@@ -63,33 +68,37 @@ jobs:
           cp "${out_dir}/.env" "$stage_dir/"
 
           cd staging
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            7z a "${pkg_name}.zip" "${pkg_name}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a "${pkg_name}.zip" "${pkg_name}" >/dev/null
+            echo "asset=staging/${pkg_name}.zip" >>"$GITHUB_OUTPUT"
           else
             tar -czf "${pkg_name}.tar.gz" "${pkg_name}"
+            echo "asset=staging/${pkg_name}.tar.gz" >>"$GITHUB_OUTPUT"
           fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BIN_NAME }}-${{ matrix.target }}
-          path: |
-            staging/*.zip
-            staging/*.tar.gz
+          path: ${{ steps.package.outputs.asset }}
           if-no-files-found: error
+          compression-level: 0
 
   release:
     name: create release
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: artifacts/*
           generate_release_notes: true
+          fail_on_unmatched_files: true
