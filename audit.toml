@@ -1,0 +1,5 @@
+# cargo-audit configuration: https://docs.rs/cargo-audit/latest/cargo_audit/config/index.html
+# Add advisory IDs here only with a comment explaining why it's safe to ignore,
+# e.g. no fix available yet and the affected code path is unused.
+[advisories]
+ignore = []
