@@ -932,7 +932,7 @@ dependencies = [
  "config",
  "dotenvy",
  "indicatif",
- "rand 0.9.4",
+ "rand 0.10.1",
  "secrecy 0.10.3",
  "serde",
  "serde_json",
