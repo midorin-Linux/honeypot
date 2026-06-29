@@ -17,7 +17,7 @@
 cargo run --release
 ```
 
-**強大な権限！よく動くギルド！威力あるBAN！大勢のスパムアカウント！正確な判断！**
+**強大な権限！よく動くギルド！威力あるBAN！大勢のスパムアカウント！正確な判断！**  
 **あとはそこにリンターがあれば！完成する！**
 ```shell
 just fmt
@@ -26,5 +26,5 @@ just fmt
 # ...お前に次の計画を手伝わせよう
 **必要なのだ！**
 - Rust 2024 Edition Nightly Toolchain
-- Justfile
+- Justfile  
 **の環境が！**
