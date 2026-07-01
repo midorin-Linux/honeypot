@@ -1,0 +1,8 @@
+# Discord
+honeypot_channel: 0
+
+# AI
+api_base_url: "https://api.openai.com/v1"
+llm_model: "anthropic/claude-3.5-haiku"
+# AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを無条件でBANする
+enable_ai_judgment: true
