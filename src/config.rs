@@ -9,10 +9,12 @@ use crate::models::secret_key::SecretKey;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    // .env（機密情報）
     pub discord_token: SecretKey,
+    pub api_key: String,
+    // settings.yml（アプリケーション設定）
     pub honeypot_channel: u64,
     pub api_base_url: String,
-    pub api_key: String,
     pub llm_model: String,
     #[serde(default = "default_enable_ai_judgment")]
     pub enable_ai_judgment: bool,
@@ -26,9 +28,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             discord_token: SecretKey::new("".to_string()),
+            api_key: "".to_string(),
             honeypot_channel: 0,
             api_base_url: "".to_string(),
-            api_key: "".to_string(),
             llm_model: "".to_string(),
             enable_ai_judgment: true,
         }
@@ -37,13 +39,19 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        info!("loading configuration file");
+        info!("loading configuration files");
 
-        let file_path = PathBuf::from(".env");
+        let settings_path = PathBuf::from("settings.yml");
+        let env_path = PathBuf::from(".env");
 
         let config = ConfigBuilder::builder()
             .add_source(
-                File::from(file_path)
+                File::from(settings_path)
+                    .format(config::FileFormat::Yaml)
+                    .required(true),
+            )
+            .add_source(
+                File::from(env_path)
                     .format(config::FileFormat::Ini)
                     .required(true),
             )
