@@ -7,6 +7,9 @@ use tracing::{debug, info};
 
 use crate::models::secret_key::SecretKey;
 
+/// 設定ファイルのパス。`Config`と`logging`の軽量読み取りで共有する。
+pub const SETTINGS_FILE: &str = "settings.yml";
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -40,7 +43,7 @@ pub struct AiConfig {
     pub api_key: SecretKey,
     pub base_url: String,
     pub model_id: String,
-    
+
     #[serde(default = "default_support_image")]
     pub support_image: bool,
 }
@@ -55,7 +58,7 @@ pub struct AppConfig {
 
     #[serde(default = "default_has_role_mention")]
     pub has_role_mention: bool,
-    
+
     pub honeypot_channel: u64,
 }
 
@@ -83,7 +86,7 @@ impl Config {
     pub fn load() -> Result<Self> {
         info!("loading configuration file");
 
-        let settings_path = PathBuf::from("settings.yml");
+        let settings_path = PathBuf::from(SETTINGS_FILE);
 
         let config = ConfigBuilder::builder()
             .add_source(

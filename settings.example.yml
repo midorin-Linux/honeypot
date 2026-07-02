@@ -1,6 +1,6 @@
 env:
   # debug | info | warn | error
-  LOG_LEVEL: info
+  log_level: info
 
 discord:
   token: YOUR_DISCORD_TOKEN_HERE
