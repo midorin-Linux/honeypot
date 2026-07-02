@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use config::{Config as ConfigBuilder, File};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::{debug, info};
 
 use crate::models::secret_key::SecretKey;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     // .env（機密情報）
     pub discord_token: SecretKey,
@@ -70,7 +70,7 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.discord_token.as_ref().trim().is_empty() {
+        if self.discord_token.expose().trim().is_empty() {
             bail!("discord_token must not be empty");
         }
 
@@ -83,7 +83,7 @@ impl Config {
                 bail!("api_base_url must not be empty");
             }
 
-            if self.api_key.as_ref().trim().is_empty() {
+            if self.api_key.expose().trim().is_empty() {
                 bail!("api_key must not be empty");
             }
 

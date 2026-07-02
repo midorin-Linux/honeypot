@@ -2,7 +2,7 @@ use std::{fmt as stdfmt, fmt};
 
 use chrono::Local;
 use secrecy::{ExposeSecret, SecretString};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::{
     Event, Subscriber,
     field::{Field, Visit},
@@ -11,32 +11,26 @@ use tracing_subscriber::{
     fmt::{FmtContext, FormatEvent, FormatFields, format::Writer},
     registry::LookupSpan,
 };
-use zeroize::Zeroizing;
 
 const MAX_FIELD_VALUE_LEN: usize = 100;
 
+/// Debug出力で末尾の一部を可視化する文字数。
+const VISIBLE_SUFFIX_LEN: usize = 4;
+/// 末尾の一部を可視化してよい最小の長さ。これ未満の秘密は全マスクする。
+const MIN_LEN_FOR_SUFFIX: usize = 12;
+/// マスク文字列の表示幅。元の長さを推測されないよう固定にする。
+const MASK_WIDTH: usize = 20;
+
 #[derive(Clone)]
-pub struct SecretKey(Zeroizing<SecretString>);
+pub struct SecretKey(SecretString);
 
 impl SecretKey {
     pub fn new(value: String) -> Self {
-        Self(Zeroizing::new(SecretString::new(value.into())))
+        Self(SecretString::new(value.into()))
     }
 
     pub fn expose(&self) -> &str {
-        (*self.0).expose_secret()
-    }
-}
-
-impl AsRef<str> for SecretKey {
-    fn as_ref(&self) -> &str {
-        self.expose()
-    }
-}
-
-impl Serialize for SecretKey {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.expose())
+        self.0.expose_secret()
     }
 }
 
@@ -49,20 +43,25 @@ impl<'de> Deserialize<'de> for SecretKey {
 
 impl fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let visible_length = 4;
-        let masked = {
-            let inner = (*self.0).expose_secret();
-            let length = inner.chars().count();
-            let start = length.saturating_sub(visible_length);
-            let extracted: String = inner.chars().skip(start).collect();
-            format!("{:*>20}", &extracted)
+        let inner = self.0.expose_secret();
+        let length = inner.chars().count();
+
+        // 十分に長い秘密のときだけ末尾数文字を残し、短い・空の秘密は全マスクする。
+        let masked = if length >= MIN_LEN_FOR_SUFFIX {
+            let suffix: String = inner.chars().skip(length - VISIBLE_SUFFIX_LEN).collect();
+            format!("{suffix:*>MASK_WIDTH$}")
+        } else {
+            "*".repeat(MASK_WIDTH)
         };
+
         f.debug_tuple("SecretKey").field(&masked).finish()
     }
 }
 
 /// tracingのイベントをフォーマットする際、各フィールド値を`MAX_FIELD_VALUE_LEN`文字で切り詰める。
-/// 機密情報がログに丸ごと出力されるのを防ぐための処理であり、`SecretKey`と対になる存在としてここに置く。
+/// これは長すぎるフィールドがログを圧迫するのを防ぐための上限であって、秘密情報のマスクではない。
+/// 秘密情報の保護は`SecretKey`の`Debug`実装（末尾以外をマスク）と、平文を露出する`expose()`の
+/// 戻り値をログに渡さない運用で担保する。対になる防御としてここに置く。
 pub struct TruncatingEventFormat;
 
 impl<S, N> FormatEvent<S, N> for TruncatingEventFormat
@@ -142,5 +141,47 @@ fn truncate_value(value: &str) -> String {
         format!("{truncated}...")
     } else {
         truncated
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_masks_short_secret_entirely() {
+        // MIN_LEN_FOR_SUFFIX未満は末尾も含めて一切露出しない。
+        for secret in ["", "a", "abcd", "abcdefghijk"] {
+            let debug = format!("{:?}", SecretKey::new(secret.to_string()));
+            let expected = format!("SecretKey(\"{}\")", "*".repeat(MASK_WIDTH));
+            assert_eq!(debug, expected, "secret {secret:?} must be fully masked");
+        }
+    }
+
+    #[test]
+    fn debug_reveals_only_suffix_for_long_secret() {
+        let secret = "0123456789ABCDEF"; // 16文字
+        let debug = format!("{:?}", SecretKey::new(secret.to_string()));
+        // 末尾4文字("CDEF")のみ残し、幅20まで`*`で左詰めする。
+        assert_eq!(debug, "SecretKey(\"****************CDEF\")");
+        // 末尾以外は含まれない。
+        assert!(!debug.contains("0123456789AB"));
+    }
+
+    #[test]
+    fn debug_does_not_leak_secret_length() {
+        let short = format!("{:?}", SecretKey::new("0123456789ABCDEF".to_string()));
+        let long = format!(
+            "{:?}",
+            SecretKey::new("0123456789ABCDEF0123456789ABCDEF".to_string())
+        );
+        // どちらも表示幅は固定なので、`*`の数から元の長さは推測できない。
+        assert_eq!(short.len(), long.len());
+    }
+
+    #[test]
+    fn expose_returns_plaintext() {
+        let key = SecretKey::new("plaintext-token".to_string());
+        assert_eq!(key.expose(), "plaintext-token");
     }
 }
