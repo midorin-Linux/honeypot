@@ -5,14 +5,14 @@ pub use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::EnvFilter;
 
-use crate::models::secret_key::TruncatingEventFormat;
+use crate::{config::SETTINGS_FILE, models::secret_key::TruncatingEventFormat};
 
 /// `Config::load()`より前に呼ばれるため、settings.ymlから`env.log_level`のみを
 /// 軽量に読み取る。settings.yml自体が読めない場合は"info"にフォールバックする。
 fn read_log_level() -> String {
     ConfigBuilder::builder()
         .add_source(
-            File::from(std::path::PathBuf::from("settings.yml"))
+            File::from(std::path::PathBuf::from(SETTINGS_FILE))
                 .format(config::FileFormat::Yaml)
                 .required(false),
         )

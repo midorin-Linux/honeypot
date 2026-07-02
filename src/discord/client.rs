@@ -19,7 +19,6 @@ impl DiscordClient {
         let intents = GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;
-        
 
         // AIエージェントの初期化
         let agent_runtime = match AgentRuntime::new(config.clone()) {

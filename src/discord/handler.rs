@@ -7,8 +7,10 @@ use serenity::{
 };
 use tracing::{error, info, warn};
 
-use crate::agent::runtime::{AgentRuntime, ImageAttachment};
-use crate::config::Config;
+use crate::{
+    agent::runtime::{AgentRuntime, ImageAttachment},
+    config::Config,
+};
 
 pub struct Handler {
     pub agent_runtime: AgentRuntime,
@@ -27,32 +29,8 @@ impl EventHandler for Handler {
             return;
         }
 
-        let ban_reason = if !self.config.app.enable_ai_judgment {
-            "honeypot: AI judgment disabled, all posts in target channel are banned"
-        } else if self.config.app.has_invite_link && has_invite_link(&msg.content) {
-            "honeypot: discord invite link detected"
-        } else if self.config.app.has_role_mention && !msg.mention_roles.is_empty() {
-            "honeypot: role/everyone mention detected"
-        } else {
-            let images = if self.config.ai.support_image {
-                download_image_attachments(&msg).await
-            } else {
-                Vec::new()
-            };
-
-            let is_spam = match self.agent_runtime.judge_spam(&msg.content, &images).await {
-                Ok(verdict) => verdict,
-                Err(err) => {
-                    error!(error = %err, "failed to judge message for spam");
-                    return;
-                }
-            };
-
-            if !is_spam {
-                return;
-            }
-
-            "honeypot: spam detected by LLM"
+        let Some(ban_reason) = self.determine_ban_reason(&msg).await else {
+            return;
         };
 
         let Some(guild_id) = msg.guild_id else {
@@ -83,6 +61,39 @@ impl EventHandler for Handler {
             "✓".green(),
             data_about_bot.user.name
         );
+    }
+}
+
+impl Handler {
+    /// メッセージをBANすべきか判定する。BAN対象ならその理由を、対象外なら`None`を返す。
+    /// 設定による即時BAN条件を先に評価し、いずれにも該当しない場合のみAI判定へ進む。
+    async fn determine_ban_reason(&self, msg: &Message) -> Option<&'static str> {
+        if !self.config.app.enable_ai_judgment {
+            return Some("honeypot: AI judgment disabled, all posts in target channel are banned");
+        }
+
+        if self.config.app.has_invite_link && has_invite_link(&msg.content) {
+            return Some("honeypot: discord invite link detected");
+        }
+
+        if self.config.app.has_role_mention && !msg.mention_roles.is_empty() {
+            return Some("honeypot: role/everyone mention detected");
+        }
+
+        let images = if self.config.ai.support_image {
+            download_image_attachments(msg).await
+        } else {
+            Vec::new()
+        };
+
+        match self.agent_runtime.judge_spam(&msg.content, &images).await {
+            Ok(true) => Some("honeypot: spam detected by LLM"),
+            Ok(false) => None,
+            Err(err) => {
+                error!(error = %err, "failed to judge message for spam");
+                None
+            }
+        }
     }
 }
 
