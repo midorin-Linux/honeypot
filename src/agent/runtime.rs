@@ -31,9 +31,9 @@ const MAX_RETRIES: usize = 2;
 const RETRY_DELAY_MS: u64 = 1000;
 
 #[derive(Debug, Deserialize)]
-struct SpamVerdict {
-    is_spam: bool,
-    reason: String,
+pub struct SpamVerdict {
+    pub is_spam: bool,
+    pub reason: String,
 }
 
 pub struct AgentRuntime {
@@ -68,7 +68,7 @@ impl AgentRuntime {
         })
     }
 
-    pub async fn judge_spam(&self, content: &str, images: &[ImageAttachment]) -> Result<bool> {
+    pub async fn judge_spam(&self, content: &str, images: &[ImageAttachment]) -> Result<SpamVerdict> {
         let retry_strategy = FixedInterval::from_millis(RETRY_DELAY_MS).take(MAX_RETRIES);
 
         Retry::start(retry_strategy, || self.judge_spam_once(content, images)).await
@@ -111,7 +111,7 @@ impl AgentRuntime {
             .into())
     }
 
-    async fn judge_spam_once(&self, content: &str, images: &[ImageAttachment]) -> Result<bool> {
+    async fn judge_spam_once(&self, content: &str, images: &[ImageAttachment]) -> Result<SpamVerdict> {
         let user_message = self.build_user_message(content, images)?;
 
         let request = CreateChatCompletionRequestArgs::default()
@@ -144,6 +144,6 @@ impl AgentRuntime {
 
         debug!(reason = %verdict.reason, "spam verdict reason");
 
-        Ok(verdict.is_spam)
+        Ok(verdict)
     }
 }
