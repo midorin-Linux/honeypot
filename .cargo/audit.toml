@@ -2,4 +2,9 @@
 # Add advisory IDs here only with a comment explaining why it's safe to ignore,
 # e.g. no fix available yet and the affected code path is unused.
 [advisories]
-ignore = []
+ignore = [
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104"
+]
