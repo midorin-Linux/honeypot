@@ -20,8 +20,8 @@ impl DiscordClient {
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;
 
-        let honeypot_channel = config.honeypot_channel;
-        let enable_ai_judgment = config.enable_ai_judgment;
+        let honeypot_channel = config.app.honeypot_channel;
+        let enable_ai_judgment = config.app.enable_ai_judgment;
 
         // AIエージェントの初期化
         let agent_runtime = match AgentRuntime::new(config.clone()) {
@@ -34,7 +34,7 @@ impl DiscordClient {
         };
 
         // Discordクライアントの作成
-        let client = Client::builder(config.discord_token.expose(), intents)
+        let client = Client::builder(config.discord.token.expose(), intents)
             .event_handler(Handler {
                 agent_runtime,
                 spinner,

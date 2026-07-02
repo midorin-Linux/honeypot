@@ -54,11 +54,11 @@ pub struct AgentRuntime {
 
 impl AgentRuntime {
     pub fn new(config: Config) -> Result<Self> {
-        let model = config.llm_model.clone();
+        let model = config.ai.model_id.clone();
 
         let openai_config = OpenAIConfig::new()
-            .with_api_base(config.api_base_url)
-            .with_api_key(config.api_key.expose())
+            .with_api_base(config.ai.base_url)
+            .with_api_key(config.ai.api_key.expose())
             .with_header("HTTP-Referer", "https://github.com/midorin-Linux/honeypot")?
             .with_header("X-OpenRouter-Title", "Honeypot")?
             .with_header("X-OpenRouter-Categories", "personal-agent")?;

@@ -9,50 +9,64 @@ use crate::models::secret_key::SecretKey;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
-    // .env（機密情報）
-    pub discord_token: SecretKey,
+    #[serde(default)]
+    pub env: EnvConfig,
+    pub discord: DiscordConfig,
+    pub ai: AiConfig,
+    pub app: AppConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EnvConfig {
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+}
+
+impl Default for EnvConfig {
+    fn default() -> Self {
+        Self {
+            log_level: default_log_level(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiscordConfig {
+    pub token: SecretKey,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiConfig {
+    pub base_url: String,
+    pub model_id: String,
     pub api_key: SecretKey,
-    // settings.yml（アプリケーション設定）
-    pub honeypot_channel: u64,
-    pub api_base_url: String,
-    pub llm_model: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AppConfig {
     #[serde(default = "default_enable_ai_judgment")]
     pub enable_ai_judgment: bool,
+    pub honeypot_channel: u64,
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 fn default_enable_ai_judgment() -> bool {
     true
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            discord_token: SecretKey::new("".to_string()),
-            api_key: SecretKey::new("".to_string()),
-            honeypot_channel: 0,
-            api_base_url: "".to_string(),
-            llm_model: "".to_string(),
-            enable_ai_judgment: true,
-        }
-    }
-}
-
 impl Config {
     pub fn load() -> Result<Self> {
-        info!("loading configuration files");
+        info!("loading configuration file");
 
         let settings_path = PathBuf::from("settings.yml");
-        let env_path = PathBuf::from(".env");
 
         let config = ConfigBuilder::builder()
             .add_source(
                 File::from(settings_path)
                     .format(config::FileFormat::Yaml)
-                    .required(true),
-            )
-            .add_source(
-                File::from(env_path)
-                    .format(config::FileFormat::Ini)
                     .required(true),
             )
             .build()
@@ -70,25 +84,25 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.discord_token.expose().trim().is_empty() {
-            bail!("discord_token must not be empty");
+        if self.discord.token.expose().trim().is_empty() {
+            bail!("discord.token must not be empty");
         }
 
-        if self.honeypot_channel == 0 {
-            bail!("honeypot_channel must not be empty");
+        if self.app.honeypot_channel == 0 {
+            bail!("app.honeypot_channel must not be empty");
         }
 
-        if self.enable_ai_judgment {
-            if self.api_base_url.trim().is_empty() {
-                bail!("api_base_url must not be empty");
+        if self.app.enable_ai_judgment {
+            if self.ai.base_url.trim().is_empty() {
+                bail!("ai.base_url must not be empty");
             }
 
-            if self.api_key.expose().trim().is_empty() {
-                bail!("api_key must not be empty");
+            if self.ai.api_key.expose().trim().is_empty() {
+                bail!("ai.api_key must not be empty");
             }
 
-            if self.llm_model.trim().is_empty() {
-                bail!("llm_model must not be empty");
+            if self.ai.model_id.trim().is_empty() {
+                bail!("ai.model_id must not be empty");
             }
         }
 

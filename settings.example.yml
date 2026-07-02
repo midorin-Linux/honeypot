@@ -1,8 +1,19 @@
-# Discord
-honeypot_channel: 0
+env:
+  # debug | info | warn | error
+  LOG_LEVEL: info
 
-# AI
-api_base_url: "https://api.openai.com/v1"
-llm_model: "anthropic/claude-3.5-haiku"
-# AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを無条件でBANする
-enable_ai_judgment: true
+discord:
+  token: YOUR_DISCORD_TOKEN_HERE
+
+ai:
+  api_key: YOUR_API_KEY_HERE
+  # https://api.openai.com/v1 -> https://api.openai.com/v1/models
+  base_url: https://api.openai.com/v1
+  model_id: gpt-oss-20b
+
+app:
+  # AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを無条件でBANする
+  enable_ai_judgment: true
+
+  # ハニーポットに使用するテキストチャンネルID
+  honeypot_channel: 1520723308004380723
