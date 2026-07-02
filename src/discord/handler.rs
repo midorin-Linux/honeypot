@@ -7,7 +7,7 @@ use serenity::{
 };
 use tracing::{error, info, warn};
 
-use crate::agent::runtime::AgentRuntime;
+use crate::agent::runtime::{AgentRuntime, ImageAttachment};
 use crate::config::Config;
 
 pub struct Handler {
@@ -34,7 +34,13 @@ impl EventHandler for Handler {
         } else if self.config.app.has_role_mention && !msg.mention_roles.is_empty() {
             "honeypot: role/everyone mention detected"
         } else {
-            let is_spam = match self.agent_runtime.judge_spam(&msg.content).await {
+            let images = if self.config.ai.support_image {
+                download_image_attachments(&msg).await
+            } else {
+                Vec::new()
+            };
+
+            let is_spam = match self.agent_runtime.judge_spam(&msg.content, &images).await {
                 Ok(verdict) => verdict,
                 Err(err) => {
                     error!(error = %err, "failed to judge message for spam");
@@ -97,6 +103,34 @@ fn salvation_reply(account_name: &str) -> String {
         .choose(&mut rand::rng())
         .unwrap()
         .replace("{account_name}", account_name)
+}
+
+async fn download_image_attachments(msg: &Message) -> Vec<ImageAttachment> {
+    let mut images = Vec::new();
+
+    for attachment in &msg.attachments {
+        let Some(content_type) = &attachment.content_type else {
+            continue;
+        };
+
+        if !content_type.starts_with("image/") {
+            continue;
+        }
+
+        match attachment.download().await {
+            Ok(data) => images.push(ImageAttachment {
+                data,
+                content_type: content_type.clone(),
+            }),
+            Err(err) => warn!(
+                error = %err,
+                attachment_id = %attachment.id,
+                "failed to download image attachment"
+            ),
+        }
+    }
+
+    images
 }
 
 fn has_invite_link(content: &str) -> bool {

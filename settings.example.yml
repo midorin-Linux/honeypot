@@ -6,10 +6,14 @@ discord:
   token: YOUR_DISCORD_TOKEN_HERE
 
 ai:
+  # -----プロバイダー設定-----
   api_key: YOUR_API_KEY_HERE
   # https://api.openai.com/v1 -> https://api.openai.com/v1/models
   base_url: https://api.openai.com/v1
   model_id: gpt-oss-20b
+  
+  # -----モデル設定-----
+  support_image: false
 
 app:
   # AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを即時BANする

@@ -3,15 +3,27 @@ use async_openai::{
     Client,
     config::OpenAIConfig,
     types::chat::{
-        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestUserMessage, CreateChatCompletionRequestArgs, ResponseFormat,
+        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
+        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageArgs,
+        ChatCompletionRequestUserMessageContentPart, CreateChatCompletionRequestArgs, ImageUrl,
+        ResponseFormat,
     },
 };
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use serde::Deserialize;
 use tokio_retry::{Retry, strategy::FixedInterval};
 use tracing::debug;
 
 use crate::config::Config;
+
+/// An image attachment to be included in the spam-judgment prompt.
+/// Images are embedded as base64 data URLs rather than sent as remote URLs,
+/// since Discord CDN links can expire or require authentication.
+pub struct ImageAttachment {
+    pub data: Vec<u8>,
+    pub content_type: String,
+}
 
 const SYSTEM_PROMPT: &str = r#"
     You are a spam classifier for a honeypot Discord channel that exists only to attract scammers and spammers. Classify the following user message as spam or not.
@@ -50,11 +62,13 @@ struct SpamVerdict {
 pub struct AgentRuntime {
     client: Client<OpenAIConfig>,
     model: String,
+    support_image: bool,
 }
 
 impl AgentRuntime {
     pub fn new(config: Config) -> Result<Self> {
         let model = config.ai.model_id.clone();
+        let support_image = config.ai.support_image;
 
         let openai_config = OpenAIConfig::new()
             .with_api_base(config.ai.base_url)
@@ -65,23 +79,66 @@ impl AgentRuntime {
 
         let client = Client::with_config(openai_config);
 
-        Ok(Self { client, model })
+        Ok(Self {
+            client,
+            model,
+            support_image,
+        })
     }
 
-    pub async fn judge_spam(&self, content: &str) -> Result<bool> {
+    pub async fn judge_spam(&self, content: &str, images: &[ImageAttachment]) -> Result<bool> {
         let retry_strategy = FixedInterval::from_millis(RETRY_DELAY_MS).take(MAX_RETRIES);
 
-        Retry::start(retry_strategy, || self.judge_spam_once(content)).await
+        Retry::start(retry_strategy, || self.judge_spam_once(content, images)).await
     }
 
-    async fn judge_spam_once(&self, content: &str) -> Result<bool> {
+    fn build_user_message(
+        &self,
+        content: &str,
+        images: &[ImageAttachment],
+    ) -> Result<ChatCompletionRequestMessage> {
+        if !self.support_image || images.is_empty() {
+            return Ok(ChatCompletionRequestMessage::User(
+                ChatCompletionRequestUserMessage::from(content),
+            ));
+        }
+
+        let mut parts: Vec<ChatCompletionRequestUserMessageContentPart> =
+            vec![ChatCompletionRequestMessageContentPartText::from(content).into()];
+
+        for image in images {
+            let data_url = format!(
+                "data:{};base64,{}",
+                image.content_type,
+                BASE64.encode(&image.data)
+            );
+
+            parts.push(
+                ChatCompletionRequestMessageContentPartImage::from(ImageUrl {
+                    url: data_url,
+                    detail: None,
+                })
+                .into(),
+            );
+        }
+
+        Ok(ChatCompletionRequestUserMessageArgs::default()
+            .content(parts)
+            .build()
+            .context("failed to build user message with images")?
+            .into())
+    }
+
+    async fn judge_spam_once(&self, content: &str, images: &[ImageAttachment]) -> Result<bool> {
+        let user_message = self.build_user_message(content, images)?;
+
         let request = CreateChatCompletionRequestArgs::default()
             .model(&self.model)
             .messages(vec![
                 ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage::from(
                     SYSTEM_PROMPT,
                 )),
-                ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage::from(content)),
+                user_message,
             ])
             .response_format(ResponseFormat::JsonObject)
             .build()

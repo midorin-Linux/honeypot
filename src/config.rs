@@ -37,9 +37,12 @@ pub struct DiscordConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AiConfig {
+    pub api_key: SecretKey,
     pub base_url: String,
     pub model_id: String,
-    pub api_key: SecretKey,
+    
+    #[serde(default = "default_support_image")]
+    pub support_image: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,6 +61,10 @@ pub struct AppConfig {
 
 fn default_log_level() -> String {
     "info".to_string()
+}
+
+fn default_support_image() -> bool {
+    false
 }
 
 fn default_enable_ai_judgment() -> bool {

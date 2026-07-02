@@ -922,6 +922,7 @@ version = "0.1.4"
 dependencies = [
  "anyhow",
  "async-openai",
+ "base64",
  "chrono",
  "colored",
  "config",

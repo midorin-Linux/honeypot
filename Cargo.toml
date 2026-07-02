@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 async-openai = { version = "0.41", features = ["chat-completion"] }
+base64 = "0.22"
 chrono = "0.4"
 colored = "3"
 config = "0.15"
