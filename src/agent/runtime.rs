@@ -25,30 +25,7 @@ pub struct ImageAttachment {
     pub content_type: String,
 }
 
-const SYSTEM_PROMPT: &str = r#"
-    You are a spam classifier for a honeypot Discord channel that exists only to attract scammers and spammers. Classify the following user message as spam or not.
-
-    Analyze the incoming message based on the following characteristics and trends:
-
-    ### 1. Spam Characteristics
-    - **Mass Mentioning (Ghost Mentions):** Messages containing an unusually high number of user or role tags without context.
-    - **Repetitive Copy-Paste:** Sending the exact same message or block of text multiple times across channels in a short timeframe.
-    - **Unsolicited Self-Promotion / Links:** Messages promoting external links, sketchy websites, or alternative Discord server invites.
-    - **Phishing & Scams:** Promises of free Discord Nitro, cryptocurrency schemes, fake giveaways, or urgent requests to click a link to "verify" an account.
-
-    ### 2. Trolling (Raiding / Harassment) Characteristics
-    - **Deliberate Provocation (Flamebait):** Messages clearly intended to anger, upset, or provoke emotional reactions.
-    - **Character/Text Flooding:** Using walls of text, excessive line breaks, or repeating large blocks of emojis/symbols to disrupt the chat flow.
-    - **Bypassing Filters (Leetspeak/Obfuscation):** Attempting to bypass word filters by using intentional misspellings, symbols, spaces, or numbers (e.g., "sc@m", "b4n").
-    - **Coordinated Attack Behavior:** Synchronized, off-topic, or hostile messages sent by newly joined accounts (Raiding).
-
-    ### Output Format
-    Respond with a JSON object of exactly this shape:
-
-    {"is_spam": boolean, "reason": string}
-
-    Do not include any other text. Only output the JSON object.
-    "#;
+const PROMPT_FILE: &str = "PROMPT.md";
 
 const MAX_RETRIES: usize = 2;
 const RETRY_DELAY_MS: u64 = 1000;
@@ -63,12 +40,16 @@ pub struct AgentRuntime {
     client: Client<OpenAIConfig>,
     model: String,
     support_image: bool,
+    system_prompt: String,
 }
 
 impl AgentRuntime {
     pub fn new(config: Config) -> Result<Self> {
         let model = config.ai.model_id.clone();
         let support_image = config.ai.support_image;
+
+        let system_prompt = std::fs::read_to_string(PROMPT_FILE)
+            .with_context(|| format!("failed to read system prompt from {PROMPT_FILE}"))?;
 
         let openai_config = OpenAIConfig::new()
             .with_api_base(config.ai.base_url)
@@ -83,6 +64,7 @@ impl AgentRuntime {
             client,
             model,
             support_image,
+            system_prompt,
         })
     }
 
@@ -136,7 +118,7 @@ impl AgentRuntime {
             .model(&self.model)
             .messages(vec![
                 ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage::from(
-                    SYSTEM_PROMPT,
+                    self.system_prompt.as_str(),
                 )),
                 user_message,
             ])
