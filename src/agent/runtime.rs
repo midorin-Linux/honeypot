@@ -68,7 +68,11 @@ impl AgentRuntime {
         })
     }
 
-    pub async fn judge_spam(&self, content: &str, images: &[ImageAttachment]) -> Result<SpamVerdict> {
+    pub async fn judge_spam(
+        &self,
+        content: &str,
+        images: &[ImageAttachment],
+    ) -> Result<SpamVerdict> {
         let retry_strategy = FixedInterval::from_millis(RETRY_DELAY_MS).take(MAX_RETRIES);
 
         Retry::start(retry_strategy, || self.judge_spam_once(content, images)).await
@@ -111,7 +115,11 @@ impl AgentRuntime {
             .into())
     }
 
-    async fn judge_spam_once(&self, content: &str, images: &[ImageAttachment]) -> Result<SpamVerdict> {
+    async fn judge_spam_once(
+        &self,
+        content: &str,
+        images: &[ImageAttachment],
+    ) -> Result<SpamVerdict> {
         let user_message = self.build_user_message(content, images)?;
 
         let request = CreateChatCompletionRequestArgs::default()

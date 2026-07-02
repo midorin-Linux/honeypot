@@ -69,7 +69,10 @@ impl Handler {
     /// 設定による即時BAN条件を先に評価し、いずれにも該当しない場合のみAI判定へ進む。
     async fn determine_ban_reason(&self, msg: &Message) -> Option<String> {
         if !self.config.app.enable_ai_judgment {
-            return Some("honeypot: AI judgment disabled, all posts in target channel are banned".to_string());
+            return Some(
+                "honeypot: AI judgment disabled, all posts in target channel are banned"
+                    .to_string(),
+            );
         }
 
         if self.config.app.has_invite_link && has_invite_link(&msg.content) {
@@ -89,7 +92,10 @@ impl Handler {
         match self.agent_runtime.judge_spam(&msg.content, &images).await {
             Ok(verdict) => {
                 if verdict.is_spam {
-                    Some(format!("honeypot: spam detected by LLM - {}", verdict.reason))
+                    Some(format!(
+                        "honeypot: spam detected by LLM - {}",
+                        verdict.reason
+                    ))
                 } else {
                     None
                 }
