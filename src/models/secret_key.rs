@@ -1,7 +1,7 @@
 use std::{fmt as stdfmt, fmt};
 
 use chrono::Local;
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::{ExposeSecret, SecretString, zeroize::Zeroize};
 use serde::Deserialize;
 use tracing::{
     Event, Subscriber,
@@ -14,19 +14,21 @@ use tracing_subscriber::{
 
 const MAX_FIELD_VALUE_LEN: usize = 100;
 
-/// Debug出力で末尾の一部を可視化する文字数。
-const VISIBLE_SUFFIX_LEN: usize = 4;
-/// 末尾の一部を可視化してよい最小の長さ。これ未満の秘密は全マスクする。
-const MIN_LEN_FOR_SUFFIX: usize = 12;
-/// マスク文字列の表示幅。元の長さを推測されないよう固定にする。
-const MASK_WIDTH: usize = 20;
+/// Debug出力のマスク文字列。長さ・内容とも秘密から独立した固定値。
+const REDACTED: &str = "[REDACTED]";
 
 #[derive(Clone)]
 pub struct SecretKey(SecretString);
 
 impl SecretKey {
-    pub fn new(value: String) -> Self {
-        Self(SecretString::new(value.into()))
+    /// 渡された`String`は秘密を退避したあとゼロ化する。
+    /// （呼び出し元が別に保持しているコピーまでは消せない点に注意。）
+    pub fn new(mut value: String) -> Self {
+        // `From<&str>`はcapacity==lenの新規バッファへ確保するため、
+        // `into_boxed_str()`の再確保で旧バッファが未消去のまま残ることがない。
+        let secret = SecretString::from(value.as_str());
+        value.zeroize();
+        Self(secret)
     }
 
     pub fn expose(&self) -> &str {
@@ -43,24 +45,14 @@ impl<'de> Deserialize<'de> for SecretKey {
 
 impl fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let inner = self.0.expose_secret();
-        let length = inner.chars().count();
-
-        // 十分に長い秘密のときだけ末尾数文字を残し、短い・空の秘密は全マスクする。
-        let masked = if length >= MIN_LEN_FOR_SUFFIX {
-            let suffix: String = inner.chars().skip(length - VISIBLE_SUFFIX_LEN).collect();
-            format!("{suffix:*>MASK_WIDTH$}")
-        } else {
-            "*".repeat(MASK_WIDTH)
-        };
-
-        f.debug_tuple("SecretKey").field(&masked).finish()
+        // 秘密には一切触れず、内容・長さから独立した固定文字列のみを出力する。
+        f.debug_tuple("SecretKey").field(&REDACTED).finish()
     }
 }
 
 /// tracingのイベントをフォーマットする際、各フィールド値を`MAX_FIELD_VALUE_LEN`文字で切り詰める。
 /// これは長すぎるフィールドがログを圧迫するのを防ぐための上限であって、秘密情報のマスクではない。
-/// 秘密情報の保護は`SecretKey`の`Debug`実装（末尾以外をマスク）と、平文を露出する`expose()`の
+/// 秘密情報の保護は`SecretKey`の`Debug`実装（全文マスク）と、平文を露出する`expose()`の
 /// 戻り値をログに渡さない運用で担保する。対になる防御としてここに置く。
 pub struct TruncatingEventFormat;
 
@@ -149,23 +141,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn debug_masks_short_secret_entirely() {
-        // MIN_LEN_FOR_SUFFIX未満は末尾も含めて一切露出しない。
-        for secret in ["", "a", "abcd", "abcdefghijk"] {
+    fn debug_fully_redacts_any_secret() {
+        // 長さにかかわらず、一部の文字も含めて一切露出しない。
+        for secret in ["", "a", "abcd", "abcdefghijk", "0123456789ABCDEF"] {
             let debug = format!("{:?}", SecretKey::new(secret.to_string()));
-            let expected = format!("SecretKey(\"{}\")", "*".repeat(MASK_WIDTH));
-            assert_eq!(debug, expected, "secret {secret:?} must be fully masked");
+            assert_eq!(
+                debug,
+                format!("SecretKey({REDACTED:?})"),
+                "secret {secret:?} must be fully redacted"
+            );
         }
-    }
-
-    #[test]
-    fn debug_reveals_only_suffix_for_long_secret() {
-        let secret = "0123456789ABCDEF"; // 16文字
-        let debug = format!("{:?}", SecretKey::new(secret.to_string()));
-        // 末尾4文字("CDEF")のみ残し、幅20まで`*`で左詰めする。
-        assert_eq!(debug, "SecretKey(\"****************CDEF\")");
-        // 末尾以外は含まれない。
-        assert!(!debug.contains("0123456789AB"));
     }
 
     #[test]
@@ -175,8 +160,8 @@ mod tests {
             "{:?}",
             SecretKey::new("0123456789ABCDEF0123456789ABCDEF".to_string())
         );
-        // どちらも表示幅は固定なので、`*`の数から元の長さは推測できない。
-        assert_eq!(short.len(), long.len());
+        // どちらも出力は固定文字列なので、表示から元の長さは推測できない。
+        assert_eq!(short, long);
     }
 
     #[test]
