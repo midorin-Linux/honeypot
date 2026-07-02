@@ -61,10 +61,8 @@ impl fmt::Debug for SecretKey {
     }
 }
 
-impl Drop for SecretKey {
-    fn drop(&mut self) {}
-}
-
+/// tracingのイベントをフォーマットする際、各フィールド値を`MAX_FIELD_VALUE_LEN`文字で切り詰める。
+/// 機密情報がログに丸ごと出力されるのを防ぐための処理であり、`SecretKey`と対になる存在としてここに置く。
 pub struct TruncatingEventFormat;
 
 impl<S, N> FormatEvent<S, N> for TruncatingEventFormat

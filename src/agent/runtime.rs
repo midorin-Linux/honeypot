@@ -58,7 +58,7 @@ impl AgentRuntime {
 
         let openai_config = OpenAIConfig::new()
             .with_api_base(config.api_base_url)
-            .with_api_key(config.api_key)
+            .with_api_key(config.api_key.as_ref())
             .with_header("HTTP-Referer", "https://github.com/midorin-Linux/honeypot")?
             .with_header("X-OpenRouter-Title", "Honeypot")?
             .with_header("X-OpenRouter-Categories", "personal-agent")?;
