@@ -34,7 +34,7 @@ impl DiscordClient {
         };
 
         // Discordクライアントの作成
-        let client = Client::builder(config.discord_token.as_ref(), intents)
+        let client = Client::builder(config.discord_token.expose(), intents)
             .event_handler(Handler {
                 agent_runtime,
                 spinner,
