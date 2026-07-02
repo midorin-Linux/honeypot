@@ -14,7 +14,7 @@ use crate::{discord::client::DiscordClient, logging::init_tracing};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("  Honeypot Ver. 0.0.1");
+    println!("  Honeypot Ver. {}", env!("CARGO_PKG_VERSION"));
 
     sleep(std::time::Duration::from_secs(1)).await;
     println!();

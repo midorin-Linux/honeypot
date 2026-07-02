@@ -11,7 +11,7 @@ use crate::models::secret_key::SecretKey;
 pub struct Config {
     // .env（機密情報）
     pub discord_token: SecretKey,
-    pub api_key: String,
+    pub api_key: SecretKey,
     // settings.yml（アプリケーション設定）
     pub honeypot_channel: u64,
     pub api_base_url: String,
@@ -28,7 +28,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             discord_token: SecretKey::new("".to_string()),
-            api_key: "".to_string(),
+            api_key: SecretKey::new("".to_string()),
             honeypot_channel: 0,
             api_base_url: "".to_string(),
             llm_model: "".to_string(),
@@ -83,7 +83,7 @@ impl Config {
                 bail!("api_base_url must not be empty");
             }
 
-            if self.api_key.trim().is_empty() {
+            if self.api_key.as_ref().trim().is_empty() {
                 bail!("api_key must not be empty");
             }
 
