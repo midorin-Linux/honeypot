@@ -8,43 +8,31 @@ use serenity::{
 use tracing::{error, info, warn};
 
 use crate::agent::runtime::AgentRuntime;
+use crate::config::Config;
 
 pub struct Handler {
     pub agent_runtime: AgentRuntime,
+    pub config: Config,
     pub spinner: indicatif::ProgressBar,
-    pub honeypot_channel: u64,
-    pub enable_ai_judgment: bool,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, _ctx: Context, data_about_bot: Ready) {
-        self.spinner.finish_and_clear();
-        info!(user = %data_about_bot.user.name, "discord client is ready");
-        println!(
-            "  {} Discord client ready! Logged in as {}",
-            "✓".green(),
-            data_about_bot.user.name
-        );
-    }
-
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.author.bot {
             return;
         }
 
-        if msg.channel_id.get() != self.honeypot_channel {
+        if msg.channel_id.get() != self.config.app.honeypot_channel {
             return;
         }
 
-        let ban_reason = if !self.enable_ai_judgment {
+        let ban_reason = if !self.config.app.enable_ai_judgment {
             "honeypot: AI judgment disabled, all posts in target channel are banned"
-        } else if has_invite_link(&msg.content) {
+        } else if self.config.app.has_invite_link && has_invite_link(&msg.content) {
             "honeypot: discord invite link detected"
-        } else if msg.mention_everyone || !msg.mention_roles.is_empty() {
+        } else if self.config.app.has_role_mention && !msg.mention_roles.is_empty() {
             "honeypot: role/everyone mention detected"
-        } else if msg.mentions.len() > 1 {
-            "honeypot: mass mention detected"
         } else {
             let is_spam = match self.agent_runtime.judge_spam(&msg.content).await {
                 Ok(verdict) => verdict,
@@ -79,6 +67,16 @@ impl EventHandler for Handler {
         {
             error!(error = %err, user_id = %msg.author.id, "failed to ban user - check BAN_MEMBERS permission");
         }
+    }
+
+    async fn ready(&self, _ctx: Context, data_about_bot: Ready) {
+        self.spinner.finish_and_clear();
+        info!(user = %data_about_bot.user.name, "discord client is ready");
+        println!(
+            "  {} Discord client ready! Logged in as {}",
+            "✓".green(),
+            data_about_bot.user.name
+        );
     }
 }
 

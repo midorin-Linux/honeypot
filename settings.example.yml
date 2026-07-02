@@ -12,8 +12,14 @@ ai:
   model_id: gpt-oss-20b
 
 app:
-  # AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを無条件でBANする
+  # AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを即時BANする
   enable_ai_judgment: true
+
+  # 条件付きで即時BAN
+  # 招待リンクが含まれている場合( discord.gg/* | discord.com/invite/* | discordapp.com/invite/* )
+  has_invite_link: true
+  # 全体メンションまたはロールメンションが含まれている場合
+  has_role_mention: true
 
   # ハニーポットに使用するテキストチャンネルID
   honeypot_channel: 1520723308004380723

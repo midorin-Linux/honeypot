@@ -19,9 +19,7 @@ impl DiscordClient {
         let intents = GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;
-
-        let honeypot_channel = config.app.honeypot_channel;
-        let enable_ai_judgment = config.app.enable_ai_judgment;
+        
 
         // AIエージェントの初期化
         let agent_runtime = match AgentRuntime::new(config.clone()) {
@@ -37,9 +35,8 @@ impl DiscordClient {
         let client = Client::builder(config.discord.token.expose(), intents)
             .event_handler(Handler {
                 agent_runtime,
+                config,
                 spinner,
-                honeypot_channel,
-                enable_ai_judgment,
             })
             .await
             .context("failed to create discord client")?;

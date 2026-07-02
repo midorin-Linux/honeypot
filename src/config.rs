@@ -46,6 +46,13 @@ pub struct AiConfig {
 pub struct AppConfig {
     #[serde(default = "default_enable_ai_judgment")]
     pub enable_ai_judgment: bool,
+
+    #[serde(default = "default_has_invite_link")]
+    pub has_invite_link: bool,
+
+    #[serde(default = "default_has_role_mention")]
+    pub has_role_mention: bool,
+    
     pub honeypot_channel: u64,
 }
 
@@ -54,6 +61,14 @@ fn default_log_level() -> String {
 }
 
 fn default_enable_ai_judgment() -> bool {
+    true
+}
+
+fn default_has_invite_link() -> bool {
+    true
+}
+
+fn default_has_role_mention() -> bool {
     true
 }
 
