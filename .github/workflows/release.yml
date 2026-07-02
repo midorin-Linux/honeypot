@@ -75,6 +75,7 @@ jobs:
           cp "${out_dir}/${BIN_NAME}${{ matrix.ext }}" "$stage_dir/"
           cp "${out_dir}/README.md" "$stage_dir/"
           cp "${out_dir}/settings.yml" "$stage_dir/"
+          cp "${out_dir}/PROMPT.md" "$stage_dir/"
 
           cd staging
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
