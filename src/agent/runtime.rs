@@ -180,7 +180,7 @@ fn extract_json(content: &str) -> &str {
     let trimmed = content.trim();
 
     match (trimmed.find('{'), trimmed.rfind('}')) {
-        (Some(start), Some(end)) if end > start => &trimmed[start..=end],
+        (Some(start), Some(end)) if end > start => &trimmed[start ..= end],
         _ => trimmed,
     }
 }

@@ -1,6 +1,4 @@
-use std::collections::HashSet;
-use std::io::Cursor;
-use std::sync::Mutex;
+use std::{collections::HashSet, io::Cursor, sync::Mutex};
 
 use colored::Colorize;
 use rand::seq::IndexedRandom;

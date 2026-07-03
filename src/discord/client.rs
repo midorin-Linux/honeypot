@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::sync::Mutex;
+use std::{collections::HashSet, sync::Mutex};
 
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
