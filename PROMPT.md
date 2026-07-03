@@ -45,4 +45,19 @@ Respond with a JSON object of exactly this shape:
 - `is_spam`: `true` if the message is spam/abuse, otherwise `false`.
 - `reason`: a brief explanation citing the specific signal(s) that drove the decision (e.g. which criterion matched, and whether it came from text or an image).
 
+### `reason` requirements
+
+- Keep it short and specific: **at most one sentence, roughly 100 characters or fewer**. It is stored in a Discord audit-log ban reason, which has a hard length limit — overly long reasons get truncated or rejected.
+- Name the concrete signal that matched. Do not restate the whole message, quote long passages, or add pleasantries.
+- Write in plain English.
+
+Good examples:
+- `{"is_spam": true, "reason": "Free Nitro phishing link with urgency to click"}`
+- `{"is_spam": true, "reason": "Image is a fake gift-card giveaway with a QR code"}`
+- `{"is_spam": false, "reason": "Short on-topic greeting with no spam signals"}`
+
+Bad examples (do NOT do this):
+- Too long / restates the message: `{"is_spam": true, "reason": "The user posted a very long message that appears to be advertising a website and also mentions free nitro and includes a link and is clearly trying to get people to click on it which is a classic scam technique we have seen many times..."}`
+- Vague, cites no signal: `{"is_spam": true, "reason": "It looks bad"}`
+
 Do not include any other text. Only output the JSON object.

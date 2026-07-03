@@ -46,11 +46,11 @@ async fn main() -> Result<()> {
     info!("Configuration loaded successfully");
 
     // Discordクライアントの起動
-    // spinnerはDiscordClient::newへ移譲され、失敗時は内部で終了処理される。
-    let discord_client = DiscordClient::new(config, spinner).await.map_err(|err| {
-        eprintln!("  {} Failed to start discord client: {}", "✗".red(), err);
-        err
-    })?;
+    // spinnerのクローンをHandlerへ渡し、接続完了時(ready)にクリアさせる。
+    // 起動失敗時のスピナー後処理・エラー出力は全経路でstartup_errorに集約する。
+    let discord_client = DiscordClient::new(config, spinner.clone())
+        .await
+        .map_err(|err| startup_error(&spinner, "Failed to start discord client", err))?;
     discord_client.run().await?;
 
     Ok(())
