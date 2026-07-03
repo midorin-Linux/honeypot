@@ -17,9 +17,10 @@ impl DiscordClient {
         info!("Starting discord client...");
 
         // GatewayIntentsの定義
-        // ハニーポットチャンネルのメッセージ本文を読み取れれば十分なため、
-        // ギルドメッセージの受信とメッセージ本文の2つに絞っている。
-        let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+        // ギルドメッセージ・DM・メッセージ本文の3つに絞って設定している。
+        let intents = GatewayIntents::GUILD_MESSAGES
+            | GatewayIntents::DIRECT_MESSAGES
+            | GatewayIntents::MESSAGE_CONTENT;
 
         // AIエージェントの初期化。エラー時のスピナー後処理は呼び出し元(main)に集約する。
         let agent_runtime =
