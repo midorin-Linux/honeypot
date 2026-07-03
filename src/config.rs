@@ -46,6 +46,10 @@ pub struct AiConfig {
 
     #[serde(default = "default_support_image")]
     pub support_image: bool,
+
+    /// AIプロバイダへのリクエストタイムアウト（秒）。ハング時に判定が無期限ブロックするのを防ぐ。
+    #[serde(default = "default_request_timeout_secs")]
+    pub request_timeout_secs: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -59,6 +63,10 @@ pub struct AppConfig {
     #[serde(default = "default_has_role_mention")]
     pub has_role_mention: bool,
 
+    /// BAN時にさかのぼって削除するメッセージの日数（Discord仕様で0〜7）。
+    #[serde(default = "default_delete_message_days")]
+    pub delete_message_days: u8,
+
     pub honeypot_channel: u64,
 }
 
@@ -68,6 +76,14 @@ fn default_log_level() -> String {
 
 fn default_support_image() -> bool {
     false
+}
+
+fn default_request_timeout_secs() -> u64 {
+    300
+}
+
+fn default_delete_message_days() -> u8 {
+    1
 }
 
 fn default_enable_ai_judgment() -> bool {
@@ -117,7 +133,15 @@ impl Config {
             bail!("app.honeypot_channel must not be empty");
         }
 
+        if self.app.delete_message_days > 7 {
+            bail!("app.delete_message_days must be between 0 and 7");
+        }
+
         if self.app.enable_ai_judgment {
+            if self.ai.request_timeout_secs == 0 {
+                bail!("ai.request_timeout_secs must be greater than 0");
+            }
+
             if self.ai.base_url.trim().is_empty() {
                 bail!("ai.base_url must not be empty");
             }

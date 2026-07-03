@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+use std::sync::Mutex;
+
 use anyhow::{Context, Result};
-use colored::Colorize;
 use indicatif::ProgressBar;
 use serenity::{Client, all::GatewayIntents};
 use tracing::info;
@@ -15,20 +17,13 @@ impl DiscordClient {
         info!("Starting discord client...");
 
         // GatewayIntentsの定義
-        // ToDo: 現在は個人プロジェクトのためすべての権限を設定しているが、権限を絞る
-        let intents = GatewayIntents::GUILD_MESSAGES
-            | GatewayIntents::DIRECT_MESSAGES
-            | GatewayIntents::MESSAGE_CONTENT;
+        // ハニーポットチャンネルのメッセージ本文を読み取れれば十分なため、
+        // ギルドメッセージの受信とメッセージ本文の2つに絞っている。
+        let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
-        // AIエージェントの初期化
-        let agent_runtime = match AgentRuntime::new(config.clone()) {
-            Ok(agent_runtime) => agent_runtime,
-            Err(err) => {
-                spinner.finish_and_clear();
-                eprintln!("  {} Failed to start agent runtime: {}", "✗".red(), err);
-                return Err(err);
-            }
-        };
+        // AIエージェントの初期化。エラー時のスピナー後処理は呼び出し元(main)に集約する。
+        let agent_runtime =
+            AgentRuntime::new(config.clone()).context("failed to start agent runtime")?;
 
         // Discordクライアントの作成
         let client = Client::builder(config.discord.token.expose(), intents)
@@ -36,6 +31,7 @@ impl DiscordClient {
                 agent_runtime,
                 config,
                 spinner,
+                banned_users: Mutex::new(HashSet::new()),
             })
             .await
             .context("failed to create discord client")?;
