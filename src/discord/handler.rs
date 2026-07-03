@@ -79,7 +79,9 @@ impl Handler {
             return Some("honeypot: discord invite link detected".to_string());
         }
 
-        if self.config.app.has_role_mention && !msg.mention_roles.is_empty() {
+        if self.config.app.has_role_mention
+            && (!msg.mention_roles.is_empty() || msg.mention_everyone)
+        {
             return Some("honeypot: role/everyone mention detected".to_string());
         }
 
