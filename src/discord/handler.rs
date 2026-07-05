@@ -42,7 +42,13 @@ impl EventHandler for Handler {
             return;
         }
 
-        if msg.channel_id.get() != self.config.app.honeypot_channel {
+        if self
+            .config
+            .app
+            .honeypot_channel
+            .iter()
+            .any(|channel_id| channel_id == &msg.channel_id.get())
+        {
             return;
         }
 

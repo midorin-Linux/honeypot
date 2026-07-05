@@ -67,7 +67,7 @@ pub struct AppConfig {
     #[serde(default = "default_delete_message_days")]
     pub delete_message_days: u8,
 
-    pub honeypot_channel: u64,
+    pub honeypot_channel: Vec<u64>,
 }
 
 fn default_log_level() -> String {
@@ -129,7 +129,7 @@ impl Config {
             bail!("discord.token must not be empty");
         }
 
-        if self.app.honeypot_channel == 0 {
+        if self.app.honeypot_channel.is_empty() {
             bail!("app.honeypot_channel must not be empty");
         }
 
