@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Cursor, sync::Mutex};
+use std::{collections::HashSet, sync::Mutex};
 
 use colored::Colorize;
 use rand::seq::IndexedRandom;
@@ -10,20 +10,10 @@ use serenity::{
 use tracing::{error, info, warn};
 
 use crate::{
-    agent::{Agent, ImageAttachment},
+    agent::Agent,
     config::Config,
+    moderation::rules::determine_ban_reason,
 };
-
-/// LLMが生成するBAN理由の最大文字数。監査ログに埋め込む前にこの長さへ切り詰める。
-/// serenityは理由が512文字を超えると`ExceededLimit`を返すため、余裕を持たせた上限にする。
-const MAX_BAN_REASON_LEN: usize = 100;
-
-/// 画像をそのままAIへ送るサイズ上限（バイト）。これを超えたら縮小・再圧縮する。
-const IMAGE_DOWNSCALE_THRESHOLD_BYTES: u64 = 5 * 1024 * 1024;
-/// ダウンロード自体を諦めるサイズ上限（バイト）。巨大ファイルによるメモリ枯渇を防ぐ。
-const IMAGE_MAX_DOWNLOAD_BYTES: u64 = 25 * 1024 * 1024;
-/// 縮小後の画像の最大辺（ピクセル）。スパム判定に必要な解像度は高くないため小さめにする。
-const IMAGE_MAX_DIMENSION: u32 = 1024;
 
 pub struct Handler {
     pub agent: Agent,
@@ -57,12 +47,17 @@ impl EventHandler for Handler {
             return;
         }
 
-        let Some(ban_reason) = self.determine_ban_reason(&msg).await else {
+        let Some(guild_id) = msg.guild_id else {
+            warn!("honeypot message had no guild_id; cannot ban");
             return;
         };
 
-        let Some(guild_id) = msg.guild_id else {
-            warn!("honeypot message had no guild_id; cannot ban");
+        let verdict = determine_ban_reason(&msg, &self.agent, &self.config)
+            .await
+            .unwrap();
+
+        // スパム判定されなかった人はここで処理をドロップアウト
+        if !verdict.is_spam {
             return;
         };
 
@@ -72,7 +67,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        info!(user = %msg.author.name, user_id = %msg.author.id, reason = ban_reason, "banning spammer detected in honeypot channel");
+        info!(user = %msg.author.name, user_id = %msg.author.id, reason = verdict.reason, "banning spammer detected in honeypot channel");
 
         let reply = salvation_reply(&msg.author.name);
         if let Err(err) = msg.reply(&ctx.http, reply).await {
@@ -84,7 +79,7 @@ impl EventHandler for Handler {
                 &ctx.http,
                 msg.author.id,
                 self.config.app.delete_message_days,
-                ban_reason,
+                verdict.reason,
             )
             .await
         {
@@ -120,50 +115,6 @@ impl Handler {
             .expect("banned_users mutex poisoned")
             .insert(user_id)
     }
-
-    /// メッセージをBANすべきか判定する。BAN対象ならその理由を、対象外なら`None`を返す。
-    /// 設定による即時BAN条件を先に評価し、いずれにも該当しない場合のみAI判定へ進む。
-    async fn determine_ban_reason(&self, msg: &Message) -> Option<String> {
-        if !self.config.app.enable_ai_judgment {
-            return Some(
-                "honeypot: AI judgment disabled, all posts in target channel are banned"
-                    .to_string(),
-            );
-        }
-
-        if self.config.app.has_invite_link && has_invite_link(&msg.content) {
-            return Some("honeypot: discord invite link detected".to_string());
-        }
-
-        if self.config.app.has_role_mention
-            && (!msg.mention_roles.is_empty() || msg.mention_everyone)
-        {
-            return Some("honeypot: role/everyone mention detected".to_string());
-        }
-
-        let images = if self.config.ai.support_image {
-            download_image_attachments(msg).await
-        } else {
-            Vec::new()
-        };
-
-        match self.agent.judge_spam(&msg.content, &images).await {
-            Ok(verdict) => {
-                if verdict.is_spam {
-                    Some(format!(
-                        "honeypot: spam detected by LLM - {}",
-                        truncate_reason(&verdict.reason)
-                    ))
-                } else {
-                    None
-                }
-            }
-            Err(err) => {
-                error!(error = %err, "failed to judge message for spam");
-                None
-            }
-        }
-    }
 }
 
 const SALVATION_REPLIES: [&str; 9] = [
@@ -183,113 +134,4 @@ fn salvation_reply(account_name: &str) -> String {
         .choose(&mut rand::rng())
         .expect("SALVATION_REPLIES must be non-empty")
         .replace("{account_name}", account_name)
-}
-
-/// BAN理由文字列を`MAX_BAN_REASON_LEN`文字以内に切り詰める（文字境界を尊重）。
-/// 切り詰めた場合は末尾を省略記号にする。
-fn truncate_reason(reason: &str) -> String {
-    let reason = reason.trim();
-
-    if reason.chars().count() <= MAX_BAN_REASON_LEN {
-        return reason.to_string();
-    }
-
-    let truncated: String = reason.chars().take(MAX_BAN_REASON_LEN - 1).collect();
-    format!("{truncated}…")
-}
-
-async fn download_image_attachments(msg: &Message) -> Vec<ImageAttachment> {
-    let mut images = Vec::new();
-
-    for attachment in &msg.attachments {
-        let Some(content_type) = &attachment.content_type else {
-            continue;
-        };
-
-        if !content_type.starts_with("image/") {
-            continue;
-        }
-
-        // ハニーポットには悪意ある投稿が集中するため、巨大ファイルはダウンロード自体を行わない。
-        if attachment.size as u64 > IMAGE_MAX_DOWNLOAD_BYTES {
-            warn!(
-                attachment_id = %attachment.id,
-                size = attachment.size,
-                "skipping oversized image attachment"
-            );
-            continue;
-        }
-
-        let data = match attachment.download().await {
-            Ok(data) => data,
-            Err(err) => {
-                warn!(
-                    error = %err,
-                    attachment_id = %attachment.id,
-                    "failed to download image attachment"
-                );
-                continue;
-            }
-        };
-
-        // 一定サイズを超える画像は、メモリ・AI APIコスト削減のため縮小・再圧縮する。
-        // 再圧縮に失敗した場合は元データにフォールバックする。
-        let (data, content_type) = if attachment.size as u64 > IMAGE_DOWNSCALE_THRESHOLD_BYTES {
-            match downscale_image(&data) {
-                Some(reduced) => reduced,
-                None => {
-                    warn!(
-                        attachment_id = %attachment.id,
-                        "failed to downscale large image; using original"
-                    );
-                    (data, content_type.clone())
-                }
-            }
-        } else {
-            (data, content_type.clone())
-        };
-
-        images.push(ImageAttachment { data, content_type });
-    }
-
-    images
-}
-
-/// 画像をデコードし、最大辺が`IMAGE_MAX_DIMENSION`を超える場合は縮小してJPEGで再エンコードする。
-/// 判定に必要十分な解像度へ落としつつ、ペイロードサイズを抑える。デコード/エンコード失敗時は`None`。
-fn downscale_image(data: &[u8]) -> Option<(Vec<u8>, String)> {
-    let reader = image::ImageReader::new(Cursor::new(data))
-        .with_guessed_format()
-        .ok()?;
-
-    let img = reader.decode().ok()?;
-
-    let img = if img.width() > IMAGE_MAX_DIMENSION || img.height() > IMAGE_MAX_DIMENSION {
-        img.resize(
-            IMAGE_MAX_DIMENSION,
-            IMAGE_MAX_DIMENSION,
-            image::imageops::FilterType::Triangle,
-        )
-    } else {
-        img
-    };
-
-    let mut buf = Cursor::new(Vec::new());
-    // JPEGはアルファチャンネルを扱えないためRGB8へ変換してからエンコードする。
-    image::DynamicImage::ImageRgb8(img.to_rgb8())
-        .write_to(&mut buf, image::ImageFormat::Jpeg)
-        .ok()?;
-
-    Some((buf.into_inner(), "image/jpeg".to_string()))
-}
-
-fn has_invite_link(content: &str) -> bool {
-    const INVITE_DOMAINS: [&str; 3] = [
-        "discord.gg/",
-        "discord.com/invite/",
-        "discordapp.com/invite/",
-    ];
-
-    let lower = content.to_lowercase();
-    INVITE_DOMAINS.iter().any(|domain| lower.contains(domain))
 }

@@ -2,7 +2,7 @@ pub mod agent;
 pub mod config;
 pub mod db;
 pub mod discord;
-pub mod models;
+pub mod moderation;
 pub mod telemetry;
 
 use anyhow::{Error, Result};

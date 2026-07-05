@@ -5,7 +5,7 @@ pub use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::EnvFilter;
 
-use crate::{config::SETTINGS_FILE, models::secret_key::TruncatingEventFormat};
+use crate::config::{SETTINGS_FILE, TruncatingEventFormat};
 
 fn read_log_level() -> String {
     ConfigBuilder::builder()
