@@ -1,3 +1,6 @@
+# Development
 /target
-
 /.idea
+
+# Application
+settings.yml
