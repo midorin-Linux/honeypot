@@ -12,9 +12,10 @@ pub const SETTINGS_FILE: &str = "settings.yml";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
-    #[serde(default)]
     pub env: EnvConfig,
     pub discord: DiscordConfig,
+    pub ai: AiConfig,
+    pub app: AppConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -40,12 +41,68 @@ pub struct DiscordConfig {
     pub token: SecretKey,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiConfig {
+    pub api_key: SecretKey,
+    pub base_url: String,
+    pub model_id: String,
+
+    #[serde(default = "default_support_image")]
+    pub support_image: bool,
+
+    /// AIプロバイダへのリクエストタイムアウト（秒）。ハング時に判定が無期限ブロックするのを防ぐ。
+    #[serde(default = "default_request_timeout_secs")]
+    pub request_timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AppConfig {
+    #[serde(default = "default_enable_ai_judgment")]
+    pub enable_ai_judgment: bool,
+
+    #[serde(default = "default_has_invite_link")]
+    pub has_invite_link: bool,
+
+    #[serde(default = "default_has_role_mention")]
+    pub has_role_mention: bool,
+
+    /// BAN時にさかのぼって削除するメッセージの日数（Discord仕様で0〜7）。
+    #[serde(default = "default_delete_message_days")]
+    pub delete_message_days: u8,
+
+    pub honeypot_channel: Vec<u64>,
+}
+
 fn default_log_level() -> String {
     "info".to_string()
 }
 
 fn default_database_url() -> String {
     "honeypot.db".to_string()
+}
+
+fn default_support_image() -> bool {
+    false
+}
+
+fn default_request_timeout_secs() -> u64 {
+    300
+}
+
+fn default_delete_message_days() -> u8 {
+    1
+}
+
+fn default_enable_ai_judgment() -> bool {
+    true
+}
+
+fn default_has_invite_link() -> bool {
+    true
+}
+
+fn default_has_role_mention() -> bool {
+    true
 }
 
 impl Config {

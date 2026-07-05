@@ -1,11 +1,13 @@
 pub mod handler;
 
+use std::{collections::HashSet, sync::Mutex};
+
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
 use serenity::{Client, all::GatewayIntents};
 use tracing::info;
 
-use crate::{config::Config, discord::handler::Handler};
+use crate::{agent::Agent, config::Config, discord::handler::Handler};
 
 pub struct DiscordClient {
     client: Client,
@@ -15,6 +17,9 @@ impl DiscordClient {
     pub async fn new(config: Config, spinner: ProgressBar) -> Result<Self> {
         info!("Starting discord client...");
 
+        // AIエージェントの初期化。エラー時のスピナー後処理は呼び出し元(main)に集約する。
+        let agent = Agent::new(config.clone()).context("failed to start agent")?;
+
         // GatewayIntentsの定義
         // ギルドメッセージ・DM・メッセージ本文の3つに絞って設定している。
         let intents = GatewayIntents::GUILD_MESSAGES
@@ -23,7 +28,12 @@ impl DiscordClient {
 
         // Discordクライアントの作成
         let client = Client::builder(config.discord.token.expose(), intents)
-            .event_handler(Handler { config, spinner })
+            .event_handler(Handler {
+                agent,
+                config,
+                spinner,
+                banned_users: Mutex::new(HashSet::new()),
+            })
             .await
             .context("failed to create discord client")?;
 
