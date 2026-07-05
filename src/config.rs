@@ -1,6 +1,6 @@
 use std::{fmt as stdfmt, fmt, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Local;
 use config::{Config as ConfigBuilder, File};
 use secrecy::{ExposeSecret, SecretString, zeroize::Zeroize};
@@ -68,11 +68,17 @@ pub struct AppConfig {
     #[serde(default = "default_enable_ai_judgment")]
     pub enable_ai_judgment: bool,
 
+    /// ターゲットチャンネルに投稿したアカウントを、他の条件・AI判定を一切問わず即時BANする。
+    /// 強力なため既定は無効。有効時は他のban_trigger/AI判定より優先される。
+    #[serde(default = "default_unconditional_ban")]
+    pub unconditional_ban: bool,
+
     pub honeypot_channel: Vec<u64>,
 
     #[serde(default = "default_delete_message_days")]
     pub delete_message_days: u8,
 
+    #[serde(default)]
     pub ban_trigger: BanTriggerConfig,
 }
 
@@ -86,6 +92,16 @@ pub struct BanTriggerConfig {
 
     #[serde(default = "default_mention_threshold")]
     pub mention_threshold: u64,
+}
+
+impl Default for BanTriggerConfig {
+    fn default() -> Self {
+        Self {
+            has_invite_link: default_has_invite_link(),
+            has_role_mention: default_has_role_mention(),
+            mention_threshold: default_mention_threshold(),
+        }
+    }
 }
 
 fn default_log_level() -> String {
@@ -110,6 +126,10 @@ fn default_delete_message_days() -> u8 {
 
 fn default_enable_ai_judgment() -> bool {
     true
+}
+
+fn default_unconditional_ban() -> bool {
+    false
 }
 
 fn default_has_invite_link() -> bool {
@@ -151,6 +171,36 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if self.discord.token.expose().trim().is_empty() {
+            bail!("discord.token must not be empty");
+        }
+
+        if self.app.honeypot_channel.is_empty() {
+            bail!("app.honeypot_channel must not be empty");
+        }
+
+        if self.app.delete_message_days > 7 {
+            bail!("app.delete_message_days must be between 0 and 7");
+        }
+
+        if self.app.enable_ai_judgment {
+            if self.ai.request_timeout_secs == 0 {
+                bail!("ai.request_timeout_secs must be greater than 0");
+            }
+
+            if self.ai.base_url.trim().is_empty() {
+                bail!("ai.base_url must not be empty");
+            }
+
+            if self.ai.api_key.expose().trim().is_empty() {
+                bail!("ai.api_key must not be empty");
+            }
+
+            if self.ai.model_id.trim().is_empty() {
+                bail!("ai.model_id must not be empty");
+            }
+        }
+
         Ok(())
     }
 }

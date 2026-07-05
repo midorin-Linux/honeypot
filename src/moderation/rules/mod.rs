@@ -24,7 +24,12 @@ pub async fn determine_ban_reason(
     config: &Config,
     ban_trigger: &BanTriggerSettings,
 ) -> Result<Verdict> {
-    if ban_trigger.has_invite_link && has_invite_link(msg) {
+    if config.app.unconditional_ban {
+        Ok(Verdict {
+            is_spam: true,
+            reason: "unconditional ban enabled".to_string(),
+        })
+    } else if ban_trigger.has_invite_link && has_invite_link(msg) {
         Ok(Verdict {
             is_spam: true,
             reason: "discord invite link detected".to_string(),

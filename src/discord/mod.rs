@@ -25,8 +25,10 @@ impl DiscordClient {
         let agent = Agent::new(config.clone()).context("failed to start agent")?;
 
         // GatewayIntentsの定義
-        // ギルドメッセージ・DM・メッセージ本文の3つに絞って設定している。
-        let intents = GatewayIntents::GUILD_MESSAGES
+        // ギルドメッセージ・DM・メッセージ本文に加え、`guild_create`受信のためGUILDSを設定する。
+        // GUILDSが無いと起動後の新規参加ギルドで`/config`が登録されない。
+        let intents = GatewayIntents::GUILDS
+            | GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;
 
