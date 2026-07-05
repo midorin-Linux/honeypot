@@ -1,20 +1,24 @@
+pub mod commands;
 pub mod handler;
 
-use std::{collections::HashSet, sync::Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
 use serenity::{Client, all::GatewayIntents};
 use tracing::info;
 
-use crate::{agent::Agent, config::Config, discord::handler::Handler};
+use crate::{agent::Agent, config::Config, db::Sqlite, discord::handler::Handler};
 
 pub struct DiscordClient {
     client: Client,
 }
 
 impl DiscordClient {
-    pub async fn new(config: Config, spinner: ProgressBar) -> Result<Self> {
+    pub async fn new(config: Config, spinner: ProgressBar, db: Arc<Sqlite>) -> Result<Self> {
         info!("Starting discord client...");
 
         // AIエージェントの初期化。エラー時のスピナー後処理は呼び出し元(main)に集約する。
@@ -32,6 +36,7 @@ impl DiscordClient {
                 agent,
                 config,
                 spinner,
+                db,
                 banned_users: Mutex::new(HashSet::new()),
             })
             .await

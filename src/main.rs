@@ -5,6 +5,8 @@ pub mod discord;
 pub mod moderation;
 pub mod telemetry;
 
+use std::sync::Arc;
+
 use anyhow::{Error, Result};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -47,15 +49,16 @@ async fn main() -> Result<()> {
     info!("Configuration loaded successfully");
 
     // SqlitePoolの初期化
-    let _sqlite_pool = Sqlite::new(config.env.database_url.clone().as_str())
+    let sqlite = Sqlite::new(config.env.database_url.clone().as_str())
         .await
         .map_err(|err| startup_error(&spinner, "Failed to initialize sqlite pool", err))?;
     info!("Sqlite pool initialized successfully");
+    let db = Arc::new(sqlite);
 
     // Discordクライアントの起動
     // spinnerのクローンをHandlerへ渡し、接続完了時(ready)にクリアさせる。
     // 起動失敗時のスピナー後処理・エラー出力は全経路でstartup_errorに集約する。
-    let discord_client = DiscordClient::new(config, spinner.clone())
+    let discord_client = DiscordClient::new(config, spinner.clone(), db)
         .await
         .map_err(|err| startup_error(&spinner, "Failed to start discord client", err))?;
     discord_client.run().await?;

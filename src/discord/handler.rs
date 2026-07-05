@@ -1,10 +1,13 @@
-use std::{collections::HashSet, sync::Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 use colored::Colorize;
 use rand::seq::IndexedRandom;
 use serenity::{
     async_trait,
-    model::{channel::Message, gateway::Ready, id::UserId},
+    model::{application::Interaction, channel::Message, gateway::Ready, id::UserId},
     prelude::*,
 };
 use tracing::{error, info, warn};
@@ -12,6 +15,8 @@ use tracing::{error, info, warn};
 use crate::{
     agent::Agent,
     config::Config,
+    db::{Sqlite, models::BanTriggerSettings},
+    discord::commands,
     moderation::rules::determine_ban_reason,
 };
 
@@ -19,6 +24,7 @@ pub struct Handler {
     pub agent: Agent,
     pub config: Config,
     pub spinner: indicatif::ProgressBar,
+    pub db: Arc<Sqlite>,
     /// 既にBAN対象として処理したユーザーID。同一スパマーが連投した場合の重複判定・重複BANを防ぐ。
     /// ToDo: 現在はハニーポットが単一チャンネル前提のためプロセス内の単純な集合で足りるが、
     /// 複数チャンネル対応時にはチャンネル単位の管理・レート制限・上限付きキャッシュ等へ変更する。
@@ -52,7 +58,18 @@ impl EventHandler for Handler {
             return;
         };
 
-        let verdict = determine_ban_reason(&msg, &self.agent, &self.config)
+        // ギルド別のBAN判定設定をDBから取得する。行が無ければYAMLデフォルトへフォールバックし、
+        // 取得自体に失敗した場合も同様にYAMLデフォルトで判定を継続する(判定不能で処理停止させない)。
+        let ban_trigger = match self.db.guild_config().await.get(guild_id.get()).await {
+            Ok(Some(settings)) => settings,
+            Ok(None) => BanTriggerSettings::from(&self.config.app.ban_trigger),
+            Err(err) => {
+                warn!(error = %err, guild_id = %guild_id, "failed to load guild ban_trigger settings; falling back to yaml config");
+                BanTriggerSettings::from(&self.config.app.ban_trigger)
+            }
+        };
+
+        let verdict = determine_ban_reason(&msg, &self.agent, &self.config, &ban_trigger)
             .await
             .unwrap();
 
@@ -87,7 +104,7 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn ready(&self, _ctx: Context, data_about_bot: Ready) {
+    async fn ready(&self, ctx: Context, data_about_bot: Ready) {
         self.spinner.finish_and_clear();
         info!(user = %data_about_bot.user.name, "discord client is ready");
         println!(
@@ -95,6 +112,29 @@ impl EventHandler for Handler {
             "✓".green(),
             data_about_bot.user.name
         );
+
+        // ギルドスコープでスラッシュコマンドを登録する(グローバル登録は反映に最大1時間かかるため不採用)。
+        for guild in &data_about_bot.guilds {
+            match guild
+                .id
+                .set_commands(&ctx.http, vec![commands::config::register()])
+                .await
+            {
+                Ok(_) => info!(guild_id = %guild.id, "registered /config command for guild"),
+                Err(err) => {
+                    error!(error = %err, guild_id = %guild.id, "failed to register /config command for guild")
+                }
+            }
+        }
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::Command(command) = interaction
+            && command.data.name == "config"
+            && let Err(err) = commands::config::handle(&ctx, &command, &self.db, &self.config).await
+        {
+            error!(error = %err, "failed to handle /config interaction");
+        }
     }
 }
 

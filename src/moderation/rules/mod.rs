@@ -7,6 +7,7 @@ pub use serenity::all::Message;
 use crate::{
     agent::Agent,
     config::Config,
+    db::models::BanTriggerSettings,
     moderation::{
         pipeline::fallback_agent,
         rules::{
@@ -21,19 +22,20 @@ pub async fn determine_ban_reason(
     msg: &Message,
     agent: &Agent,
     config: &Config,
+    ban_trigger: &BanTriggerSettings,
 ) -> Result<Verdict> {
-    if config.app.ban_trigger.has_invite_link && has_invite_link(msg) {
+    if ban_trigger.has_invite_link && has_invite_link(msg) {
         Ok(Verdict {
             is_spam: true,
             reason: "discord invite link detected".to_string(),
         })
-    } else if config.app.ban_trigger.has_role_mention && has_role_mention(msg) {
+    } else if ban_trigger.has_role_mention && has_role_mention(msg) {
         Ok(Verdict {
             is_spam: true,
             reason: "role/everyone mention detected".to_string(),
         })
-    } else if !config.app.ban_trigger.mention_threshold == 0
-        && has_many_mention(msg, config.app.ban_trigger.mention_threshold)
+    } else if ban_trigger.mention_threshold != 0
+        && has_many_mention(msg, ban_trigger.mention_threshold)
     {
         Ok(Verdict {
             is_spam: true,
