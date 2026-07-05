@@ -7,7 +7,13 @@ use colored::Colorize;
 use rand::seq::IndexedRandom;
 use serenity::{
     async_trait,
-    model::{application::Interaction, channel::Message, gateway::Ready, id::UserId},
+    model::{
+        application::Interaction,
+        channel::Message,
+        gateway::Ready,
+        guild::Guild,
+        id::{GuildId, UserId},
+    },
     prelude::*,
 };
 use tracing::{error, info, warn};
@@ -38,7 +44,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        if self
+        if !self
             .config
             .app
             .honeypot_channel
@@ -69,9 +75,15 @@ impl EventHandler for Handler {
             }
         };
 
-        let verdict = determine_ban_reason(&msg, &self.agent, &self.config, &ban_trigger)
+        let verdict = match determine_ban_reason(&msg, &self.agent, &self.config, &ban_trigger)
             .await
-            .unwrap();
+        {
+            Ok(verdict) => verdict,
+            Err(err) => {
+                error!(error = %err, user_id = %msg.author.id, "failed to determine ban verdict; skipping message");
+                return;
+            }
+        };
 
         // スパム判定されなかった人はここで処理をドロップアウト
         if !verdict.is_spam {
@@ -104,7 +116,7 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn ready(&self, ctx: Context, data_about_bot: Ready) {
+    async fn ready(&self, _ctx: Context, data_about_bot: Ready) {
         self.spinner.finish_and_clear();
         info!(user = %data_about_bot.user.name, "discord client is ready");
         println!(
@@ -112,20 +124,15 @@ impl EventHandler for Handler {
             "✓".green(),
             data_about_bot.user.name
         );
+        // スラッシュコマンドの登録は`guild_create`に集約する。`guild_create`は起動時に
+        // 参加済みの各ギルドへも発火するため、ここで別途登録すると二重登録になる。
+    }
 
-        // ギルドスコープでスラッシュコマンドを登録する(グローバル登録は反映に最大1時間かかるため不採用)。
-        for guild in &data_about_bot.guilds {
-            match guild
-                .id
-                .set_commands(&ctx.http, vec![commands::config::register()])
-                .await
-            {
-                Ok(_) => info!(guild_id = %guild.id, "registered /config command for guild"),
-                Err(err) => {
-                    error!(error = %err, guild_id = %guild.id, "failed to register /config command for guild")
-                }
-            }
-        }
+    /// ギルドスコープでスラッシュコマンドを登録する(グローバル登録は反映に最大1時間かかるため不採用)。
+    /// `guild_create`は起動時の既参加ギルドと起動後の新規参加ギルドの双方で発火するため、
+    /// ここに一本化することで後発の参加でも`/config`が使えるようにする。
+    async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
+        self.register_guild_commands(&ctx, guild.id).await;
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
@@ -139,6 +146,19 @@ impl EventHandler for Handler {
 }
 
 impl Handler {
+    /// 指定ギルドへ`/config`スラッシュコマンドを登録する。失敗しても致命的ではないためログのみ。
+    async fn register_guild_commands(&self, ctx: &Context, guild_id: GuildId) {
+        match guild_id
+            .set_commands(&ctx.http, vec![commands::config::register()])
+            .await
+        {
+            Ok(_) => info!(guild_id = %guild_id, "registered /config command for guild"),
+            Err(err) => {
+                error!(error = %err, guild_id = %guild_id, "failed to register /config command for guild")
+            }
+        }
+    }
+
     /// 既にBAN対象として登録済みのユーザーかを確認する（AI判定などの重い処理をスキップするため）。
     fn already_handled(&self, user_id: UserId) -> bool {
         self.banned_users

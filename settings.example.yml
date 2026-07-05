@@ -20,8 +20,12 @@ ai:
   support_image: false
 
 app:
-  # AIにスパム判定をさせるかどうか。falseの場合、ターゲットチャンネルに投稿したアカウントを無条件でBANする
+  # AIにスパム判定をさせるかどうか。falseの場合、AI判定は行わず、ban_triggerの条件のみでBANを判断する
   enable_ai_judgment: true
+
+  # ターゲットチャンネルに投稿したアカウントを、ban_triggerの条件やAI判定を一切問わず無条件でBANする。
+  # 強力なため既定は無効(false)。有効(true)にすると他の条件より優先される。
+  unconditional_ban: false
 
   # ハニーポットに使用するテキストチャンネルID
   honeypot_channel: 1520723308004380723
