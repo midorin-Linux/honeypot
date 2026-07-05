@@ -1,6 +1,8 @@
+# Development
 /target
-/logs
-.env
-/settings.yml
-
 /.idea
+/logs
+*.db*
+
+# Application
+settings.yml

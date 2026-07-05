@@ -1,8 +1,11 @@
 pub mod agent;
 pub mod config;
+pub mod db;
 pub mod discord;
-pub mod logging;
-pub mod models;
+pub mod moderation;
+pub mod telemetry;
+
+use std::sync::Arc;
 
 use anyhow::{Error, Result};
 use colored::Colorize;
@@ -10,7 +13,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::{discord::client::DiscordClient, logging::init_tracing};
+use crate::{config::Config, db::Sqlite, discord::DiscordClient, telemetry::init_tracing};
 
 /// 起動時エラーの共通処理。スピナーを片付け、統一フォーマットで標準エラーへ出力し、
 /// `?`で伝播できるよう元のエラーをそのまま返す。
@@ -41,14 +44,21 @@ async fn main() -> Result<()> {
     info!("Tracing initialized successfully");
 
     // Configの読み込み
-    let config = config::Config::load()
+    let config = Config::load()
         .map_err(|err| startup_error(&spinner, "Failed to load configuration", err))?;
     info!("Configuration loaded successfully");
+
+    // SqlitePoolの初期化
+    let sqlite = Sqlite::new(config.env.database_url.clone().as_str())
+        .await
+        .map_err(|err| startup_error(&spinner, "Failed to initialize sqlite pool", err))?;
+    info!("Sqlite pool initialized successfully");
+    let db = Arc::new(sqlite);
 
     // Discordクライアントの起動
     // spinnerのクローンをHandlerへ渡し、接続完了時(ready)にクリアさせる。
     // 起動失敗時のスピナー後処理・エラー出力は全経路でstartup_errorに集約する。
-    let discord_client = DiscordClient::new(config, spinner.clone())
+    let discord_client = DiscordClient::new(config, spinner.clone(), db)
         .await
         .map_err(|err| startup_error(&spinner, "Failed to start discord client", err))?;
     discord_client.run().await?;
