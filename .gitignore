@@ -1,6 +1,7 @@
 # Development
 /target
 /.idea
+/logs
 *.db*
 
 # Application

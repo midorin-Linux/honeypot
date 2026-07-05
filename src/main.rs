@@ -1,5 +1,6 @@
 pub mod config;
 pub mod db;
+pub mod discord;
 pub mod models;
 pub mod telemetry;
 
@@ -9,7 +10,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::{config::Config, db::Sqlite, telemetry::init_tracing};
+use crate::{config::Config, db::Sqlite, discord::DiscordClient, telemetry::init_tracing};
 
 /// 起動時エラーの共通処理。スピナーを片付け、統一フォーマットで標準エラーへ出力し、
 /// `?`で伝播できるよう元のエラーをそのまま返す。
@@ -49,6 +50,14 @@ async fn main() -> Result<()> {
         .await
         .map_err(|err| startup_error(&spinner, "Failed to initialize sqlite pool", err))?;
     info!("Sqlite pool initialized successfully");
+
+    // Discordクライアントの起動
+    // spinnerのクローンをHandlerへ渡し、接続完了時(ready)にクリアさせる。
+    // 起動失敗時のスピナー後処理・エラー出力は全経路でstartup_errorに集約する。
+    let discord_client = DiscordClient::new(config, spinner.clone())
+        .await
+        .map_err(|err| startup_error(&spinner, "Failed to start discord client", err))?;
+    discord_client.run().await?;
 
     Ok(())
 }

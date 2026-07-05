@@ -2,3 +2,6 @@ env:
   # debug | info | warn | error
   log_level: info
   database_url: "honeypot.db"
+
+discord:
+  token: YOUR_DISCORD_TOKEN_HERE

@@ -5,6 +5,8 @@ use config::{Config as ConfigBuilder, File};
 use serde::Deserialize;
 use tracing::{debug, info};
 
+use crate::models::secret_key::SecretKey;
+
 /// 設定ファイルのパス。`Config`と`logging`の軽量読み取りで共有する。
 pub const SETTINGS_FILE: &str = "settings.yml";
 
@@ -12,6 +14,7 @@ pub const SETTINGS_FILE: &str = "settings.yml";
 pub struct Config {
     #[serde(default)]
     pub env: EnvConfig,
+    pub discord: DiscordConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -30,6 +33,11 @@ impl Default for EnvConfig {
             database_url: default_database_url(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiscordConfig {
+    pub token: SecretKey,
 }
 
 fn default_log_level() -> String {
