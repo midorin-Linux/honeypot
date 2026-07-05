@@ -1,3 +1,4 @@
 env:
   # debug | info | warn | error
   log_level: info
+  database_url: "honeypot.db"
