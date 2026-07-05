@@ -1,6 +1,7 @@
 # Development
 /target
 /.idea
+*.db*
 
 # Application
 settings.yml

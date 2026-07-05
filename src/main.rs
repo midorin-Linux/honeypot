@@ -1,4 +1,5 @@
 pub mod config;
+pub mod db;
 pub mod models;
 pub mod telemetry;
 
@@ -8,7 +9,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::telemetry::init_tracing;
+use crate::{config::Config, db::Sqlite, telemetry::init_tracing};
 
 /// 起動時エラーの共通処理。スピナーを片付け、統一フォーマットで標準エラーへ出力し、
 /// `?`で伝播できるよう元のエラーをそのまま返す。
@@ -39,9 +40,15 @@ async fn main() -> Result<()> {
     info!("Tracing initialized successfully");
 
     // Configの読み込み
-    let _config = config::Config::load()
+    let config = Config::load()
         .map_err(|err| startup_error(&spinner, "Failed to load configuration", err))?;
     info!("Configuration loaded successfully");
+
+    // SqlitePoolの初期化
+    let _sqlite_pool = Sqlite::new(config.env.database_url.clone().as_str())
+        .await
+        .map_err(|err| startup_error(&spinner, "Failed to initialize sqlite pool", err))?;
+    info!("Sqlite pool initialized successfully");
 
     Ok(())
 }
