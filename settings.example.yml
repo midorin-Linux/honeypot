@@ -4,7 +4,7 @@ env:
   database_url: "honeypot.db"
 
   # 特別な理由がない限り、本番環境では有効(true)にしないでください。開発用にBANをせず、BAN判定の有無を返すだけになります。
-  debug_mode: true
+  debug_mode: false
 
 discord:
   token: YOUR_DISCORD_TOKEN_HERE
