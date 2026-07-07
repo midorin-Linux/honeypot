@@ -96,6 +96,14 @@ impl EventHandler for Handler {
             return;
         }
 
+        if self.config.env.debug_mode {
+            info!(user = %msg.author.name, user_id = %msg.author.id, reason = verdict.reason, "debug_mode enabled; skipping actual ban");
+            if let Err(err) = msg.reply(&ctx.http, "You have been banned.").await {
+                warn!(error = %err, "failed to send debug_mode ban notice");
+            }
+            return;
+        }
+
         info!(user = %msg.author.name, user_id = %msg.author.id, reason = verdict.reason, "banning spammer detected in honeypot channel");
 
         let reply = salvation_reply(&msg.author.name);

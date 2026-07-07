@@ -33,6 +33,10 @@ pub struct EnvConfig {
 
     #[serde(default = "default_database_url")]
     pub database_url: String,
+
+    /// 有効にすると、BAN判定がついても実際にはBANせず判定結果のみを返す(開発用)。
+    #[serde(default = "default_debug_mode")]
+    pub debug_mode: bool,
 }
 
 impl Default for EnvConfig {
@@ -40,6 +44,7 @@ impl Default for EnvConfig {
         Self {
             log_level: default_log_level(),
             database_url: default_database_url(),
+            debug_mode: default_debug_mode(),
         }
     }
 }
@@ -110,6 +115,10 @@ fn default_log_level() -> String {
 
 fn default_database_url() -> String {
     "honeypot.db".to_string()
+}
+
+fn default_debug_mode() -> bool {
+    false
 }
 
 fn default_support_image() -> bool {
