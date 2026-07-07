@@ -1,11 +1,10 @@
 pub mod guild_config;
 pub mod models;
 
-use std::{sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use std::str::FromStr;
 
 use crate::db::guild_config::GuildConfig;
 
