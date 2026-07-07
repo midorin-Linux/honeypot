@@ -228,17 +228,17 @@ fn settings_embed(title: &str, settings: &BanTriggerSettings, using_default: boo
         .field(
             "招待リンク検知(has_invite_link)",
             settings.has_invite_link.to_string(),
-            true,
+            false,
         )
         .field(
             "ロールメンション検知(has_role_mention)",
             settings.has_role_mention.to_string(),
-            true,
+            false,
         )
         .field(
             "メンション数閾値(mention_threshold)",
             settings.mention_threshold.to_string(),
-            true,
+            false,
         );
 
     if using_default {
