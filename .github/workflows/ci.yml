@@ -30,6 +30,11 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # PR branches only restore; only master pushes save, so the cache
+          # doesn't grow unbounded and evict the shared master cache once
+          # the repo's 10GB cache quota is exceeded.
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Format check
         run: cargo +nightly fmt --all -- --check
@@ -47,6 +52,8 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
@@ -62,6 +69,8 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Build
         run: cargo build --workspace --locked --verbose
@@ -87,6 +96,8 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
